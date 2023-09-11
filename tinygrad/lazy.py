@@ -19,7 +19,6 @@ sys.setrecursionlimit(10000)
 OPT = getenv("OPT", 2)
 LAZY = getenv("LAZY", 1)
 LAZYCACHE = getenv("LAZYCACHE", 1)
-P2P = getenv("P2P", 0)
 
 # TODO: movement ops that only change shape are really nops. treat them as such
 REMOVE_MOVEMENT_NOPS, MERGE_ELEMENTWISE_INTO_REDUCE, SHUFFLE_MOVEMENT_OPS, MERGE_ELEMENTWISE_OPS = OPT>=1, OPT>=1, OPT>=1, OPT>=1
@@ -353,7 +352,7 @@ def _realize_from(buffer: LazyBuffer) -> None:
   rawbuf = buffer.op.src[0].realize()
   assert rawbuf.realized, "realize failed?"
   if DEBUG >= 3: print(f"*** copy {buffer.device} <- {rawbuf.device} size {rawbuf.realized.size} dtype {rawbuf.realized.dtype}")
-  buffer.realized = Device[buffer.device].buffer.from_buffer(rawbuf, P2P, **buffer._device_extra_args())
+  buffer.realized = Device[buffer.device].buffer.from_buffer(rawbuf, **buffer._device_extra_args())
 
 def _realize_empty(buffer: LazyBuffer) -> None:
   buffer.realized = Device[buffer.device].buffer(prod(buffer.shape), buffer.dtype, **buffer._device_extra_args())

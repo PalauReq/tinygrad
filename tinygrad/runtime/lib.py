@@ -3,7 +3,9 @@ import ctypes
 import numpy as np
 from collections import defaultdict, deque
 from typing import TypeVar, Type, Any, Dict, Deque, Tuple
-from tinygrad.helpers import DType, dtypes, prod, GlobalCounters, ImageDType
+from tinygrad.helpers import DType, dtypes, prod, getenv, GlobalCounters, ImageDType
+
+P2P = getenv("P2P", 0)
 
 _T = TypeVar("_T")
 class RawBuffer:  # pylint: disable=abstract-method
@@ -27,7 +29,7 @@ class RawBuffer:  # pylint: disable=abstract-method
   def fromCPU(cls:Type[_T], x:np.ndarray) -> _T: raise NotImplementedError("must be implemented")
   def toCPU(self) -> np.ndarray: raise NotImplementedError("must be implemented")
   @classmethod
-  def from_buffer(cls, buffer: RawBuffer, _, **kwargs) -> _T: return cls.fromCPU(buffer.toCPU(), **kwargs)
+  def from_buffer(cls, buffer: RawBuffer, **kwargs) -> _T: return cls.fromCPU(buffer.toCPU(), **kwargs)
 
 class RawConst(RawBuffer): # pylint: disable=abstract-method
   def __repr__(self): return f"const<{self._buf}, {self.dtype}>"
@@ -54,7 +56,7 @@ class RawBufferMapped(RawBufferCopyIn):
   def toCPU(self) -> np.ndarray: return np.frombuffer(self._buffer(), dtype=np.dtype(self.dtype.np, metadata={"backing": self}), count=self.size)  # type: ignore
   def _copyin(self, x:np.ndarray) -> None: np.copyto(self.toCPU(), x.reshape(-1))
   @classmethod
-  def from_buffer(cls, buffer: RawBuffer, _, **kwargs):
+  def from_buffer(cls, buffer: RawBuffer, **kwargs):
     from tinygrad.runtime.ops_disk import RawDiskBuffer
     if isinstance(buffer.realized, RawDiskBuffer):
       ret = cls(prod(buffer.shape), buffer.dtype, **kwargs)
@@ -85,8 +87,8 @@ class RawBufferTransfer(RawBuffer):
     return ret
   
   @classmethod
-  def from_buffer(cls, buffer: RawBuffer, p2p, **kwargs):
-    if p2p >= 1 and isinstance(buffer.realized, RawBufferTransfer):
+  def from_buffer(cls, buffer: RawBuffer, **kwargs):
+    if P2P >= 1 and isinstance(buffer.realized, RawBufferTransfer):
       return cls.transfer(buffer.realized, buffer.shape, buffer.dtype, **kwargs)
     else: return super().from_buffer(buffer, **kwargs)
 
