@@ -10,9 +10,8 @@ from tinygrad.ops import Device, Compiled, UnaryOps, BinaryOps, TernaryOps, Redu
 from tinygrad.shape.shapetracker import ShapeTracker, View, get_contraction
 from tinygrad.shape.symbolic import Node, Variable
 
-from tinygrad.runtime.lib import RawConst, RawBuffer, RawBufferMapped, RawBufferTransfer
+from tinygrad.runtime.lib import RawConst, RawBuffer
 from tinygrad.runtime.ops_cpu import RawNumpyBuffer
-from tinygrad.runtime.ops_disk import RawDiskBuffer
 
 # lazy can recurse a lot
 sys.setrecursionlimit(10000)
@@ -354,14 +353,7 @@ def _realize_from(buffer: LazyBuffer) -> None:
   rawbuf = buffer.op.src[0].realize()
   assert rawbuf.realized, "realize failed?"
   if DEBUG >= 3: print(f"*** copy {buffer.device} <- {rawbuf.device} size {rawbuf.realized.size} dtype {rawbuf.realized.dtype}")
-  # TODO: make this generic
-  if isinstance(rawbuf.realized, RawDiskBuffer) and issubclass(Device[buffer.device].buffer, RawBufferMapped):
-    buffer.realized = Device[buffer.device].buffer(prod(buffer.shape), buffer.dtype, **buffer._device_extra_args())
-    rawbuf.realized.readinto(cast(RawBufferMapped, buffer.realized)._buffer())
-  elif isinstance(rawbuf.realized, RawBufferTransfer) and issubclass(Device[buffer.device].buffer, RawBufferTransfer) and P2P >= 1:
-    buffer.realized = cast(RawBufferTransfer, Device[buffer.device].buffer).transfer(rawbuf.realized, buffer.shape, buffer.dtype, **buffer._device_extra_args())
-  else:
-    buffer.realized = Device[buffer.device].buffer.fromCPU(rawbuf.toCPU(), **buffer._device_extra_args())
+  buffer.realized = Device[buffer.device].buffer.from_buffer(rawbuf, P2P, **buffer._device_extra_args())
 
 def _realize_empty(buffer: LazyBuffer) -> None:
   buffer.realized = Device[buffer.device].buffer(prod(buffer.shape), buffer.dtype, **buffer._device_extra_args())

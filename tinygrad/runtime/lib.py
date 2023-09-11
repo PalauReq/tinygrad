@@ -1,8 +1,10 @@
+from __future__ import annotations
 import ctypes
 import numpy as np
 from collections import defaultdict, deque
 from typing import TypeVar, Type, Any, Dict, Deque, Tuple
 from tinygrad.helpers import DType, dtypes, prod, GlobalCounters, ImageDType
+from tinygrad.runtime.ops_disk import RawDiskBuffer
 
 _T = TypeVar("_T")
 class RawBuffer:  # pylint: disable=abstract-method
@@ -25,6 +27,8 @@ class RawBuffer:  # pylint: disable=abstract-method
   @classmethod
   def fromCPU(cls:Type[_T], x:np.ndarray) -> _T: raise NotImplementedError("must be implemented")
   def toCPU(self) -> np.ndarray: raise NotImplementedError("must be implemented")
+  @classmethod
+  def from_buffer(cls, buffer: RawBuffer, _, **kwargs) -> _T: return cls.fromCPU(buffer.toCPU(), **kwargs)
 
 class RawConst(RawBuffer): # pylint: disable=abstract-method
   def __repr__(self): return f"const<{self._buf}, {self.dtype}>"
@@ -50,6 +54,13 @@ class RawBufferMapped(RawBufferCopyIn):
   # NOTE: this metadata prevents the backing buffer from being freed. hack can be removed with PEP688
   def toCPU(self) -> np.ndarray: return np.frombuffer(self._buffer(), dtype=np.dtype(self.dtype.np, metadata={"backing": self}), count=self.size)  # type: ignore
   def _copyin(self, x:np.ndarray) -> None: np.copyto(self.toCPU(), x.reshape(-1))
+  @classmethod
+  def from_buffer(cls, buffer: RawBuffer, _, **kwargs):
+    if isinstance(buffer.realized, RawDiskBuffer):
+      ret = cls(prod(buffer.shape), buffer.dtype, **kwargs)
+      buffer.realized.readinto(ret._buffer())
+      return ret
+    else: return super().from_buffer(buffer, **kwargs)
 
 # this one is simple enough that i moved it out of the runtimes
 class RawMallocBuffer(RawBufferMapped):
@@ -72,6 +83,12 @@ class RawBufferTransfer(RawBuffer):
     ret = cls(prod(shape), dtype, **kwargs)
     ret._transfer(x)
     return ret
+  
+  @classmethod
+  def from_buffer(cls, buffer: RawBuffer, p2p, **kwargs):
+    if p2p >= 1 and isinstance(buffer.realized, RawBufferTransfer):
+      return cls.transfer(buffer.realized, buffer.shape, buffer.dtype, **kwargs)
+    else: return super().from_buffer(buffer, **kwargs)
 
 class LRUAllocator:
   def __init__(self, dev_memsz=(4<<30)):
