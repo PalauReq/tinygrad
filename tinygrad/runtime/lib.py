@@ -4,7 +4,6 @@ import numpy as np
 from collections import defaultdict, deque
 from typing import TypeVar, Type, Any, Dict, Deque, Tuple
 from tinygrad.helpers import DType, dtypes, prod, GlobalCounters, ImageDType
-from tinygrad.runtime.ops_disk import RawDiskBuffer
 
 _T = TypeVar("_T")
 class RawBuffer:  # pylint: disable=abstract-method
@@ -56,6 +55,7 @@ class RawBufferMapped(RawBufferCopyIn):
   def _copyin(self, x:np.ndarray) -> None: np.copyto(self.toCPU(), x.reshape(-1))
   @classmethod
   def from_buffer(cls, buffer: RawBuffer, _, **kwargs):
+    from tinygrad.runtime.ops_disk import RawDiskBuffer
     if isinstance(buffer.realized, RawDiskBuffer):
       ret = cls(prod(buffer.shape), buffer.dtype, **kwargs)
       buffer.realized.readinto(ret._buffer())
