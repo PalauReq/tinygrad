@@ -62,7 +62,7 @@ class RawBufferMapped(RawBufferCopyIn):
       ret = cls(prod(buffer.shape), buffer.dtype, **kwargs)
       buffer.realized.readinto(ret._buffer())
       return ret
-    else: return super().from_buffer(buffer, **kwargs)
+    return super().from_buffer(buffer, **kwargs)
 
 # this one is simple enough that i moved it out of the runtimes
 class RawMallocBuffer(RawBufferMapped):
@@ -90,7 +90,7 @@ class RawBufferTransfer(RawBuffer):
   def from_buffer(cls, buffer: RawBuffer, **kwargs):
     if P2P >= 1 and isinstance(buffer.realized, RawBufferTransfer):
       return cls.transfer(buffer.realized, buffer.shape, buffer.dtype, **kwargs)
-    else: return super().from_buffer(buffer, **kwargs)
+    return super().from_buffer(buffer, **kwargs)
 
 class LRUAllocator:
   def __init__(self, dev_memsz=(4<<30)):
